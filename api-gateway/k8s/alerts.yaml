@@ -1,0 +1,74 @@
+groups:
+- name: api-gateway
+  interval: 30s
+  rules:
+  - alert: HighErrorRate
+    expr: |
+      (
+        sum(rate(api_gateway_requests_total{status=~"5.."}[5m])) 
+        / 
+        sum(rate(api_gateway_requests_total[5m]))
+      ) > 0.05
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High error rate detected on API Gateway"
+      description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+  - alert: HighLatency
+    expr: |
+      histogram_quantile(0.95, 
+        sum(rate(api_gateway_request_duration_seconds_bucket[5m])) by (le)
+      ) > 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High latency detected"
+      description: "P95 latency is {{ $value | humanizeDuration }}"
+
+  - alert: CircuitBreakerOpen
+    expr: api_gateway_circuit_breaker_state == 1
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Circuit breaker is open"
+      description: "Circuit breaker for {{ $labels.upstream }} has been open for 1 minute"
+
+  - alert: RateLimitExceeded
+    expr: rate(api_gateway_rate_limit_hits_total[5m]) > 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High rate limit hits"
+      description: "Rate limit exceeded {{ $value | humanizeRate }} for client {{ $labels.client_ip }}"
+
+  - alert: UpstreamDown
+    expr: api_gateway_upstream_health == 0
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Upstream service down"
+      description: "Upstream {{ $labels.upstream }} has been unhealthy for 2 minutes"
+
+  - alert: HighRequestVolume
+    expr: sum(rate(api_gateway_requests_total[5m])) > 10000
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "High request volume"
+      description: "Request volume is {{ $value | humanizeRate }}"
+
+  - alert: GatewayDown
+    expr: up{job="api-gateway"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "API Gateway is down"
+      description: "API Gateway has been down for 1 minute"
